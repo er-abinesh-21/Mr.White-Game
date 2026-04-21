@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mr. White
+
+Mr. White is a social deduction game built with Next.js, Zustand, PartyKit, and Capacitor. It supports both online rooms and offline pass-and-play on a single device.
+
+## Features
+
+- Online room flow with register, create room, and join room steps
+- Offline pass-and-play mode
+- Role reveal, clue, voting, elimination, and result phases
+- Custom game settings and preset word categories
+- Android packaging through Capacitor
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies and start the app:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `npm run dev` - start the Next.js development server
+- `npm run build` - build the production app
+- `npm run start` - run the production server
+- `npm run lint` - run ESLint
+- `npm run party` - start the PartyKit dev server
+
+## Android Notes
+
+If you open the project in Android Studio through Capacitor on Windows, make sure Gradle uses a path without spaces for the user home directory if you run into cache access issues. A dedicated folder such as `C:\GradleHome` is usually the simplest fix.
+
+## Project Structure
+
+- `src/app` - app shell and routes
+- `src/components/game` - phase UI for the game flow
+- `src/lib/engine` - game rules and role assignment
+- `src/lib/store` - shared Zustand store
+- `src/lib/data` - preset words and categories
 
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+For framework reference, see the [Next.js documentation](https://nextjs.org/docs).

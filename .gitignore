@@ -39,3 +39,23 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# capacitor & android
+/android/.gradle/
+/android/.idea/
+/android/.cxx/
+/android/.externalNativeBuild/
+/android/build/
+/android/app/build/
+/android/local.properties
+*.apk
+*.aab
+*.keystore
+
+# Android Studio
+*.iml
+.idea/
+
+# partykit
+.partykit/
+
