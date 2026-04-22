@@ -30,7 +30,7 @@ function ErrorFallback({ error, resetErrorBoundary }: any) {
 }
 
 export default function GameContainer() {
-  const { phase, round, category, joinRoom } = useGameStore();
+  const { phase, round, category, settings, joinRoom } = useGameStore();
 
   useEffect(() => {
     // If the user arrived via a share link, SetupPhase handles the routing logic now
@@ -49,7 +49,9 @@ export default function GameContainer() {
             <header className="absolute top-0 w-full px-6 py-4 flex items-center justify-between border-b border-gray-200 dark:border-white/5 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md z-50 pointer-events-none">
               <div className="flex flex-col">
                 <span className="text-[10px] font-bold text-gray-600 dark:text-gray-500 uppercase tracking-widest leading-tight">Category</span>
-                <span className="text-sm font-black text-blue-600 dark:text-blue-400 capitalize">{category || "Unknown"}</span>
+                <span className="text-sm font-black text-blue-600 dark:text-blue-400 capitalize">
+                  {settings.mrWhiteHint === 'none' ? "Hidden" : (category || "Unknown")}
+                </span>
               </div>
               <div className="flex flex-col items-end">
                 <span className="text-[10px] font-bold text-gray-600 dark:text-gray-500 uppercase tracking-widest leading-tight">Round</span>

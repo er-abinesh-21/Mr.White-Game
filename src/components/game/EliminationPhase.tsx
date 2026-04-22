@@ -5,7 +5,7 @@ import { Skull, ShieldAlert, ArrowRight } from "lucide-react";
 import { validateMrWhiteGuess } from "@/lib/engine/rules";
 
 export function EliminationPhase() {
-  const { eliminatedPlayerId, players, mrWhiteSubmitGuess, secretWord, setWinner, setPhase, startNextRound } = useGameStore();
+  const { eliminatedPlayerId, players, mrWhiteSubmitGuess, secretWord, setWinner, settings, setPhase, startNextRound } = useGameStore();
 
   const eliminatedPlayer = players.find((p) => p.id === eliminatedPlayerId);
   const [guess, setGuess] = useState("");
@@ -17,25 +17,35 @@ export function EliminationPhase() {
     }
 
     if (eliminatedPlayer.role === "mr_white") {
-       if (guess.trim().length > 0) {
-         mrWhiteSubmitGuess(guess);
-         const isCorrect = validateMrWhiteGuess(guess, secretWord);
-         if (isCorrect) {
-           setWinner("mr_white");
-         } else {
-           // If they guessed wrong, they are eliminated.
-           // Check if there are other Mr. Whites alive
-           const aliveMrWhites = players.filter((p) => p.isAlive && p.role === "mr_white").length;
-           if (aliveMrWhites === 0) {
-               setWinner("civilians");
+       if (settings.mrWhiteGuessEnabled) {
+         if (guess.trim().length > 0) {
+           mrWhiteSubmitGuess(guess);
+           const isCorrect = validateMrWhiteGuess(guess, secretWord);
+           if (isCorrect) {
+             setWinner("mr_white");
            } else {
-               // There is still another Mr. White alive
-               startNextRound();
+             // If they guessed wrong, they are eliminated.
+             // Check if there are other Mr. Whites alive
+             const aliveMrWhites = players.filter((p) => p.isAlive && p.role === "mr_white").length;
+             if (aliveMrWhites === 0) {
+                 setWinner("civilians");
+             } else {
+                 // There is still another Mr. White alive
+                 startNextRound();
+             }
            }
+         } else {
+           alert("Mr. White must make a guess.");
+           return;
          }
        } else {
-         alert("Mr. White must make a guess.");
-         return;
+         // Guessing is disabled. Mr. White is eliminated immediately.
+         const aliveMrWhites = players.filter((p) => p.isAlive && p.role === "mr_white").length;
+         if (aliveMrWhites === 0) {
+             setWinner("civilians");
+         } else {
+             startNextRound();
+         }
        }
     } else {
         // Civilian eliminated
@@ -76,7 +86,7 @@ export function EliminationPhase() {
               {eliminatedPlayer.role === "mr_white" ? "Was Mr. White!" : "Was a Civilian"}
             </div>
 
-            {eliminatedPlayer.role === "mr_white" && (
+            {eliminatedPlayer.role === "mr_white" && settings.mrWhiteGuessEnabled && (
                 <div className="mt-12 w-full pt-4 border-t border-gray-200 dark:border-white/5 space-y-4 animate-in slide-in-from-bottom-6">
                    <ShieldAlert className="w-8 h-8 mx-auto text-yellow-600 dark:text-yellow-500" />
                    <h3 className="text-xl font-bold text-yellow-600 dark:text-yellow-400">Final Guess</h3>
@@ -99,7 +109,7 @@ export function EliminationPhase() {
         onClick={handleNext}
         className="w-full bg-black text-white dark:bg-white dark:text-black font-extrabold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-lg dark:shadow-[0_0_20px_rgba(255,255,255,0.15)] group"
       >
-        <span>{eliminatedPlayer?.role === "mr_white" ? "Submit Guess & See Winner" : "Continue Game"}</span>
+        <span>{eliminatedPlayer?.role === "mr_white" && settings.mrWhiteGuessEnabled ? "Submit Guess & See Winner" : "Continue"}</span>
         <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
       </button>
     </div>

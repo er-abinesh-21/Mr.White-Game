@@ -102,14 +102,49 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <div className="mt-6 flex items-center justify-between">
-          <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Multiple Mr. Whites</span>
-          <button 
-            onClick={() => updateSettings({ multipleMrWhites: !settings.multipleMrWhites })}
-            className={`w-12 h-6 rounded-full transition-colors relative ${settings.multipleMrWhites ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'}`}
-          >
-             <div className={`w-4 h-4 rounded-full absolute top-1 transition-all ${settings.multipleMrWhites ? 'left-7 bg-white' : 'left-1 bg-white dark:bg-gray-900 shadow-sm'}`} />
-          </button>
+        <div className="mt-6 flex flex-col gap-1 border-t border-black/5 dark:border-white/5 pt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Multiple Mr. Whites</span>
+              <span className="text-[10px] text-gray-500">(For 6+ players)</span>
+            </div>
+            <button 
+              onClick={() => updateSettings({ multipleMrWhites: !settings.multipleMrWhites })}
+              className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${settings.multipleMrWhites ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+            >
+               <div className={`w-4 h-4 rounded-full absolute top-1 transition-all ${settings.multipleMrWhites ? 'left-7 bg-white' : 'left-1 bg-white dark:bg-gray-900 shadow-sm'}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-1 border-t border-black/5 dark:border-white/5 pt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col pr-4">
+              <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Mr. White Needs to Guess</span>
+              <span className="text-[10px] text-gray-500">If toggled off, Mr. White instantly loses when caught instead of getting a chance to guess the word.</span>
+            </div>
+            <button 
+              onClick={() => updateSettings({ mrWhiteGuessEnabled: !settings.mrWhiteGuessEnabled })}
+              className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${settings.mrWhiteGuessEnabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+            >
+               <div className={`w-4 h-4 rounded-full absolute top-1 transition-all ${settings.mrWhiteGuessEnabled ? 'left-7 bg-white' : 'left-1 bg-white dark:bg-gray-900 shadow-sm'}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-1 border-t border-black/5 dark:border-white/5 pt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col pr-4">
+              <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Typed Clues</span>
+              <span className="text-[10px] text-gray-500">If off, players give clues by speaking only. If on, each player must type their clue in clue phase.</span>
+            </div>
+            <button 
+              onClick={() => updateSettings({ typedClueMode: !settings.typedClueMode })}
+              className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${settings.typedClueMode ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+            >
+               <div className={`w-4 h-4 rounded-full absolute top-1 transition-all ${settings.typedClueMode ? 'left-7 bg-white' : 'left-1 bg-white dark:bg-gray-900 shadow-sm'}`} />
+            </button>
+          </div>
         </div>
       </GlassCard>
 

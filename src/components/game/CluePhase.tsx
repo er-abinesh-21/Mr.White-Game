@@ -1,10 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useGameStore } from "@/lib/store/gameStore";
 import { GlassCard } from "../ui/GlassCard";
-import { Users2, ArrowRight } from "lucide-react";
+import { Users2, ArrowRight, MessageSquareText } from "lucide-react";
 
 export function CluePhase() {
-  const { players, currentTurnIndex, submitClue, setPhase } = useGameStore();
+  const { players, currentTurnIndex, submitClue, setPhase, settings, clues, localPlayerId, isOffline } = useGameStore();
+  const [typedClue, setTypedClue] = useState("");
 
   const activePlayer = players[currentTurnIndex];
 
@@ -15,22 +16,26 @@ export function CluePhase() {
     }
   }, [activePlayer, setPhase]);
 
+  useEffect(() => {
+    setTypedClue("");
+  }, [activePlayer?.id]);
+
+  const isMyTurn = isOffline || !localPlayerId || localPlayerId === activePlayer?.id;
+
   const handleNextTurn = () => {
-    // ... rest of code
-    // Submit a dummy clue for now to pass turn
-    if (activePlayer) {
-      submitClue(activePlayer.id, "clue-submitted");
+    if (!activePlayer || !isMyTurn) return;
+
+    if (settings.typedClueMode) {
+      const clue = typedClue.trim();
+      if (!clue) {
+        alert("Please type a clue before ending your turn.");
+        return;
+      }
+      submitClue(activePlayer.id, clue);
+      return;
     }
 
-    // Check if the next alive player index will exceed array bounds
-    let nextIndex = currentTurnIndex + 1;
-    while (nextIndex < players.length && !players[nextIndex].isAlive) {
-      nextIndex++;
-    }
-
-    if (nextIndex >= players.length) {
-      setPhase("discussion");
-    }
+    submitClue(activePlayer.id, "spoken-clue");
   };
 
   if (!activePlayer) {
@@ -66,6 +71,59 @@ export function CluePhase() {
           </h2>
         </div>
 
+        {settings.typedClueMode && isMyTurn ? (
+          <div className="mt-6">
+            <input
+              type="text"
+              value={typedClue}
+              onChange={(e) => setTypedClue(e.target.value)}
+              placeholder="Type one-word clue..."
+              className="w-full bg-black/5 dark:bg-black/40 border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-medium"
+              autoComplete="off"
+              autoFocus
+            />
+          </div>
+        ) : settings.typedClueMode ? (
+          <div className="mt-6 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-center">
+            <p className="text-sm font-bold text-blue-600 dark:text-blue-400">Waiting for {activePlayer.name} to type and submit their clue.</p>
+          </div>
+        ) : !isMyTurn ? (
+          <div className="mt-6 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-center">
+            <p className="text-sm font-bold text-blue-600 dark:text-blue-400">Waiting for {activePlayer.name} to share their clue.</p>
+          </div>
+        ) : (
+          <p className="mt-6 text-sm text-gray-500 dark:text-gray-400 font-medium">
+            Say your clue out loud, then end your turn.
+          </p>
+        )}
+
+        <div className="mt-6 text-left w-full">
+          <div className="flex items-center gap-2 mb-3 text-gray-500 dark:text-gray-400 uppercase tracking-widest text-[10px] font-bold">
+            <MessageSquareText className="w-4 h-4" />
+            Shared Clues
+          </div>
+          <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+            {players.filter((player) => clues[player.id]).length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400 italic">No clues shared yet.</p>
+            ) : (
+              players.map((player) => {
+                const clue = clues[player.id];
+                if (!clue) return null;
+                return (
+                  <div key={player.id} className="rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-4 py-3">
+                    <div className="text-[10px] uppercase font-bold tracking-widest text-gray-500 dark:text-gray-400">
+                      {player.name}
+                    </div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white mt-1 break-words">
+                      {clue}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
         <div className="mt-8 pt-6 border-t border-black/5 dark:border-white/5 flex gap-4 overflow-x-auto snap-x pb-2">
            {players.map((p, idx) => (
              <div 
@@ -85,9 +143,10 @@ export function CluePhase() {
 
       <button
         onClick={handleNextTurn}
-        className="w-full bg-black text-white dark:bg-white dark:text-black font-extrabold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-800 dark:hover:bg-gray-200 transition-all hover:scale-[1.02] shadow-lg dark:shadow-[0_0_20px_rgba(255,255,255,0.15)] group"
+        disabled={!isMyTurn || (settings.typedClueMode && !typedClue.trim())}
+        className="w-full bg-black text-white dark:bg-white dark:text-black font-extrabold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-800 dark:hover:bg-gray-200 transition-all hover:scale-[1.02] shadow-lg dark:shadow-[0_0_20px_rgba(255,255,255,0.15)] group disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        <span>End {activePlayer.name}'s Turn</span>
+        <span>{isMyTurn ? `End ${activePlayer.name}'s Turn` : `Waiting for ${activePlayer.name}`}</span>
         <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
       </button>
     </div>

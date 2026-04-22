@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import PartySocket from 'partysocket';
 import { GameState, GameSettings, GamePhase, Role, Player } from '../types/game';
 import { calculateElimination } from '../engine/rules';
@@ -25,12 +26,15 @@ export interface GameStore extends GameState {
   tallyVotesAndEliminate: () => void;
   mrWhiteSubmitGuess: (guess: string) => void;
   setWinner: (winner: 'civilians' | 'mr_white') => void;
+  beginCluePhase: () => void;
   resetGame: () => void;
   startNextRound: () => void;
 }
 
 const defaultSettings: GameSettings = {
   mrWhiteHint: 'none',
+  mrWhiteGuessEnabled: true,
+  typedClueMode: false,
   timerMode: false,
   timerSeconds: 10,
   noRepeatWords: true,
@@ -41,6 +45,7 @@ const defaultSettings: GameSettings = {
 };
 
 const initialState: Omit<GameState, 'roomId'> = {
+  hostPlayerId: null,
   phase: 'setup',
   players: [],
   settings: defaultSettings,
@@ -55,28 +60,60 @@ const initialState: Omit<GameState, 'roomId'> = {
   winner: null,
 };
 
-export const useGameStore = create<GameStore>((set, get) => {
-  // Helper to update local state and optionally broadcast to other clients
-  const setAndBroadcast = (
-    updateFn: (state: GameStore) => Partial<GameState>,
-    broadcast: boolean = true
-  ) => {
-    set((state) => {
-      const updates = updateFn(state);
-      
-      if (broadcast && state.socket) {
-        state.socket.send(
-          JSON.stringify({ type: "UPDATE_STATE", state: updates })
-        );
-      }
-      
-      return updates;
-    });
-  };
+function shufflePlayers(players: Player[]): Player[] {
+  const shuffled = [...players];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
 
-  return {
-    ...initialState,
-    roomId: null,
+function shuffleClueOrder(players: Player[], round: number): Player[] {
+  const shuffled = shufflePlayers(players);
+
+  if (shuffled[0]?.role === 'mr_white') {
+    const [firstPlayer] = shuffled.splice(0, 1);
+    const targetIndex = 1 + Math.floor(Math.random() * Math.min(2, shuffled.length));
+    shuffled.splice(targetIndex, 0, firstPlayer);
+  }
+
+  return shuffled;
+}
+
+function getNextClueEligibleIndex(players: Player[], fromIndex: number): number {
+  for (let i = fromIndex + 1; i < players.length; i++) {
+    const player = players[i];
+    if (!player.isAlive) continue;
+    return i;
+  }
+  return -1;
+}
+
+export const useGameStore = create<GameStore>()(
+  persist(
+    (set, get) => {
+      // Helper to update local state and optionally broadcast to other clients
+      const setAndBroadcast = (
+        updateFn: (state: GameStore) => Partial<GameState>,
+        broadcast: boolean = true
+      ) => {
+        set((state) => {
+          const updates = updateFn(state);
+          
+          if (broadcast && state.socket) {
+            state.socket.send(
+              JSON.stringify({ type: "UPDATE_STATE", state: updates })
+            );
+          }
+          
+          return updates;
+        });
+      };
+
+      return {
+        ...initialState,
+        roomId: null,
     socket: null,
     localPlayerId: null,
     isOffline: false,
@@ -102,7 +139,16 @@ export const useGameStore = create<GameStore>((set, get) => {
         currentSocket.close();
       }
 
-      const partyhost = process.env.NEXT_PUBLIC_PARTYKIT_HOST || "127.0.0.1:1999";
+      const configuredHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST;
+      const isLocalBrowser =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+      const partyhost = isLocalBrowser
+        ? (configuredHost && (configuredHost.includes('localhost') || configuredHost.includes('127.0.0.1'))
+            ? configuredHost
+            : '127.0.0.1:1999')
+        : (configuredHost || '127.0.0.1:1999');
       
       const socket = new PartySocket({
         host: partyhost,
@@ -120,6 +166,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         }
       });
 
+      socket.addEventListener("error", (err) => {
+        console.error("PartySocket connection error", err);
+      });
+
       set({ socket, roomId });
     },
 
@@ -134,26 +184,62 @@ export const useGameStore = create<GameStore>((set, get) => {
     syncState: (state) => set((_state) => ({ ...state })),
 
     // -- Game Actions --
-    addPlayer: (name) =>
-      setAndBroadcast((state) => {
-        const newPlayerId = crypto.randomUUID();
-        // Automatically make the user who just typed their name the owner of that tab
-        if (!state.localPlayerId && !state.isOffline) {
-           set({ localPlayerId: newPlayerId });
-        }
-        
-        return {
-          players: [
-            ...state.players,
-            { id: newPlayerId, name, role: null, isAlive: true },
-          ],
-        };
-      }),
+    addPlayer: (name) => {
+      const state = get();
+      const newPlayerId = crypto.randomUUID();
+      const trimmedName = name.trim();
 
-    removePlayer: (id) =>
-      setAndBroadcast((state) => ({
-        players: state.players.filter((p) => p.id !== id),
-      })),
+      if (!trimmedName) return;
+
+      // Automatically make the user who just typed their name the owner of that tab
+      if (!state.localPlayerId && !state.isOffline) {
+        set({ localPlayerId: newPlayerId });
+      }
+
+      if (!state.isOffline && state.socket) {
+        const payload = JSON.stringify({
+          type: 'ADD_PLAYER',
+          player: { id: newPlayerId, name: trimmedName, role: null, isAlive: true },
+          settings: state.settings,
+        });
+
+        if (state.socket.readyState === WebSocket.OPEN) {
+          state.socket.send(payload);
+        } else {
+          const sendWhenOpen = () => {
+            state.socket?.send(payload);
+            state.socket?.removeEventListener('open', sendWhenOpen);
+          };
+          state.socket.addEventListener('open', sendWhenOpen);
+        }
+        return;
+      }
+
+      setAndBroadcast((currentState) => ({
+        hostPlayerId: currentState.hostPlayerId ?? (currentState.players.length === 0 ? newPlayerId : null),
+        players: [
+          ...currentState.players,
+          { id: newPlayerId, name: trimmedName, role: null, isAlive: true },
+        ],
+      }));
+    },
+
+    removePlayer: (id) => {
+      const state = get();
+
+      if (!state.isOffline && state.socket) {
+        state.socket.send(JSON.stringify({ type: 'REMOVE_PLAYER', playerId: id }));
+        return;
+      }
+
+      setAndBroadcast((currentState) => ({
+        hostPlayerId:
+          currentState.hostPlayerId === id
+            ? (currentState.players.find((p) => p.id !== id)?.id ?? null)
+            : currentState.hostPlayerId,
+        players: currentState.players.filter((p) => p.id !== id),
+      }));
+    },
 
     updateSettings: (newSettings) =>
       setAndBroadcast((state) => ({
@@ -190,12 +276,15 @@ export const useGameStore = create<GameStore>((set, get) => {
     submitClue: (playerId, clue) =>
       setAndBroadcast((state) => {
         const newClues = { ...state.clues, [playerId]: clue };
-        
-        let nextIndex = state.currentTurnIndex + 1;
-        while (nextIndex < state.players.length && !state.players[nextIndex].isAlive) {
-          nextIndex++;
+        const nextIndex = getNextClueEligibleIndex(state.players, state.currentTurnIndex);
+
+        if (nextIndex === -1) {
+          return {
+            clues: newClues,
+            phase: 'discussion',
+          };
         }
-        
+
         return {
           clues: newClues,
           currentTurnIndex: nextIndex,
@@ -254,11 +343,33 @@ export const useGameStore = create<GameStore>((set, get) => {
     setWinner: (winner) =>
       setAndBroadcast(() => ({ winner, phase: 'result' })),
 
+    beginCluePhase: () => 
+      setAndBroadcast((state) => {
+        const shuffled = shuffleClueOrder(state.players, state.round);
+        const firstEligibleIndex = getNextClueEligibleIndex(shuffled, -1);
+
+        if (firstEligibleIndex === -1) {
+          return {
+            phase: 'discussion',
+            players: shuffled,
+          };
+        }
+
+        return {
+          phase: 'clue',
+          players: shuffled,
+          clues: {},
+          currentTurnIndex: firstEligibleIndex,
+        };
+      }),
+
     startNextRound: () =>
       setAndBroadcast((state) => {
-        const firstAliveIndex = state.players.findIndex(p => p.isAlive);
+        const nextRound = state.round + 1;
+        const shuffled = shuffleClueOrder(state.players, nextRound).map(p => ({ ...p, votedFor: null }));
+        const firstEligibleIndex = getNextClueEligibleIndex(shuffled, -1);
         
-        if (firstAliveIndex === -1) {
+        if (firstEligibleIndex === -1) {
           return {
              winner: 'mr_white',
              phase: 'result'
@@ -267,10 +378,10 @@ export const useGameStore = create<GameStore>((set, get) => {
 
         return {
           phase: 'clue',
-          currentTurnIndex: firstAliveIndex,
+          currentTurnIndex: firstEligibleIndex,
           clues: {},
-          round: state.round + 1,
-          players: state.players.map(p => ({ ...p, votedFor: null })),
+          round: nextRound,
+          players: shuffled,
           eliminatedPlayerId: null
         };
       }),
@@ -289,4 +400,22 @@ export const useGameStore = create<GameStore>((set, get) => {
         winner: null,
       })),
   };
-});
+},
+{
+  name: 'mrwhite-store',
+  partialize: (state) => ({ 
+    settings: state.settings 
+  }), // Only persist rules/settings
+  merge: (persistedState, currentState) => {
+    const persisted = persistedState as Partial<GameStore>;
+    return {
+      ...currentState,
+      ...persisted,
+      settings: {
+        ...currentState.settings,
+        ...(persisted?.settings || {}),
+      },
+    };
+  },
+}
+));

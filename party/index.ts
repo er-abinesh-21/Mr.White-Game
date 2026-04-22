@@ -9,11 +9,21 @@ export default class MrWhiteServer implements Party.Server {
   
   constructor(public room: Party.Room) {}
 
+  private ensureRoomIdOnState() {
+    if (!this.gameState) return;
+    this.gameState = {
+      ...this.gameState,
+      roomId: this.room.id,
+    };
+  }
+
   // Helper to send sanitized state to clients
   // Civilians receive the secretWord, Mr White does not!
   // Roles are hidden to prevent looking at network pane
   broadcastState() {
     if (!this.gameState || !this.gameState.players) return;
+
+    this.ensureRoomIdOnState();
 
     for (const conn of this.room.getConnections()) {
       // Find what player this connection belongs to...
@@ -59,6 +69,7 @@ export default class MrWhiteServer implements Party.Server {
 
            this.gameState = {
              ...this.gameState,
+             roomId: this.room.id,
              phase: "reveal",
              players: playersWithRoles,
              category: result.category,
@@ -78,8 +89,55 @@ export default class MrWhiteServer implements Party.Server {
          }
       } 
       // Basic state synchronization logic for all other actions
+      else if (data.type === "ADD_PLAYER" && data.player) {
+        const existingPlayers = this.gameState?.players || [];
+        const alreadyExists = existingPlayers.some((p) => p.id === data.player.id);
+
+        if (!alreadyExists) {
+          this.gameState = {
+            ...(this.gameState || {
+              hostPlayerId: data.player.id,
+              phase: "setup",
+              category: "",
+              secretWord: "",
+              mrWhiteWord: null,
+              currentTurnIndex: 0,
+              clues: {},
+              round: 1,
+              eliminatedPlayerId: null,
+              mrWhiteGuess: null,
+              winner: null,
+              roomId: this.room.id,
+            }),
+            settings: this.gameState?.settings || data.settings,
+            roomId: this.room.id,
+            hostPlayerId: this.gameState?.hostPlayerId || data.player.id,
+            players: [...existingPlayers, data.player],
+          };
+        }
+
+        this.broadcastState();
+      }
+      else if (data.type === "REMOVE_PLAYER" && data.playerId) {
+        if (!this.gameState?.players) return;
+
+        const remainingPlayers = this.gameState.players.filter((p) => p.id !== data.playerId);
+        const nextHostId =
+          this.gameState.hostPlayerId === data.playerId
+            ? (remainingPlayers[0]?.id ?? null)
+            : (this.gameState.hostPlayerId ?? null);
+
+        this.gameState = {
+          ...this.gameState,
+          roomId: this.room.id,
+          hostPlayerId: nextHostId,
+          players: remainingPlayers,
+        };
+
+        this.broadcastState();
+      }
       else if (data.type === "UPDATE_STATE") {
-        this.gameState = { ...this.gameState, ...data.state };
+        this.gameState = { ...this.gameState, ...data.state, roomId: this.room.id };
         this.room.broadcast(JSON.stringify({ type: "SYNC_STATE", state: this.gameState }), [sender.id]);
       }
     } catch (e) {

@@ -13,6 +13,26 @@ export const PRESET_CATEGORIES = [
     id: 'professions',
     name: 'Professions',
     words: ['Doctor', 'Engineer', 'Teacher', 'Lawyer', 'Artist', 'Actor', 'Pilot', 'Chef']
+  },
+  {
+    id: 'vehicles',
+    name: 'Vehicles',
+    words: ['Car', 'Bicycle', 'Train', 'Airplane', 'Helicopter', 'Motorcycle', 'Bus', 'Boat']
+  },
+  {
+    id: 'sports',
+    name: 'Sports',
+    words: ['Soccer', 'Basketball', 'Tennis', 'Baseball', 'Golf', 'Cricket', 'Volleyball', 'Rugby']
+  },
+  {
+    id: 'instruments',
+    name: 'Instruments',
+    words: ['Guitar', 'Piano', 'Violin', 'Drums', 'Flute', 'Trumpet', 'Saxophone', 'Cello']
+  },
+  {
+    id: 'clothing',
+    name: 'Clothing',
+    words: ['Shirt', 'Pants', 'Dress', 'Jacket', 'Shoes', 'Hat', 'Socks', 'Skirt']
   }
 ];
 

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "party": "partykit dev"
+    "party": "partykit dev --port 1999"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",

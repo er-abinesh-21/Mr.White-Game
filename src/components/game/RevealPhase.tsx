@@ -5,7 +5,7 @@ import { Eye, EyeOff, UserCircle2, ArrowRight, ShieldAlert, Fingerprint } from "
 import { motion, AnimatePresence } from "framer-motion";
 
 export function RevealPhase() {
-  const { players, secretWord, mrWhiteWord, category, settings, setPhase, localPlayerId } = useGameStore();
+  const { players, secretWord, mrWhiteWord, category, settings, beginCluePhase, localPlayerId } = useGameStore();
 
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [isRevealed, setIsRevealed] = useState(false);
@@ -20,14 +20,14 @@ export function RevealPhase() {
     if (localPlayerId) {
       // In a fully built online game, this would send a "READY" socket message to advance the phase 
       // when everyone is ready. For now, we'll let whoever clicks it just advance the phase for everyone.
-      setPhase("clue");
+      beginCluePhase();
     } else {
       // Pass-and-play local logic
       if (currentPlayerIndex < players.length - 1) {
         setCurrentPlayerIndex((prev) => prev + 1);
         setIsRevealed(false);
       } else {
-        setPhase("clue");
+        beginCluePhase();
       }
     }
   };
@@ -41,15 +41,14 @@ export function RevealPhase() {
   const isVisuallyCivilian = visualRoleLabel === "Civilian";
 
   let displayWord = secretWord;
-  let hintText = 
-    settings.mrWhiteHint === "none" ? "No intel available." 
-    : settings.mrWhiteHint === "category" ? `Category: ${category}`
-    : `Hint: It's in the ${category}.`; 
-    
+  
   if (isMrWhite) {
     if (isHardMode && mrWhiteWord) {
       displayWord = mrWhiteWord;
-      hintText = `Category: ${category}`; // They think they are a civilian, just show word and category normally
+    } else if (settings.mrWhiteHint === "category") {
+      displayWord = category;
+    } else {
+      displayWord = "No intel available.";
     }
   }
 

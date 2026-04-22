@@ -8,7 +8,7 @@ import { getRandomWordWithSettings } from "@/lib/data/words";
 import { initializeGame } from "@/lib/engine/rules";
 
 export function SetupPhase() {
-  const { addPlayer, removePlayer, players, roomId, joinRoom, startGame, settings, isOffline, setOfflineMode, localPlayerId, updateSettings } = useGameStore();
+  const { addPlayer, removePlayer, players, roomId, joinRoom, startGame, settings, isOffline, setOfflineMode, localPlayerId, hostPlayerId, updateSettings } = useGameStore();
   const [onlineMenuState, setOnlineMenuState] = useState<'start' | 'name' | 'choose' | 'join' | 'lobby'>('start');
   const [playerNameInput, setPlayerNameInput] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
@@ -91,7 +91,9 @@ export function SetupPhase() {
     } else {
       if (onlineMenuState === 'join') setOnlineMenuState('choose');
       else if (onlineMenuState === 'choose') setOnlineMenuState('name');
-      else if (onlineMenuState === 'name') setOnlineMenuState('start');
+      else if (onlineMenuState === 'name') {
+        setOnlineMenuState('start');
+      }
       else if (onlineMenuState === 'lobby') {
         const { socket } = useGameStore.getState();
         if (socket) socket.close();
@@ -108,13 +110,14 @@ export function SetupPhase() {
       animate={{ opacity: 1, scale: 1 }}
       className="flex flex-col items-center justify-center p-6 w-full max-w-md mx-auto relative"
     >
-      <button 
-        onClick={handleGoBack}
-        disabled={onlineMenuState === 'start'}
-        className={`absolute top-2 left-2 p-3 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors border border-black/10 dark:border-white/10 z-10 ${onlineMenuState === 'start' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><path d="m15 18-6-6 6-6"/></svg>
-      </button>
+      {(onlineMenuState !== 'start') && (
+        <button 
+          onClick={handleGoBack}
+          className="absolute top-2 left-2 p-3 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors border border-black/10 dark:border-white/10 z-10"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+      )}
 
       <Link href="/settings" className="absolute top-2 right-2 p-3 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors border border-black/10 dark:border-white/10 z-10">
         <Settings2 className="w-5 h-5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" />
@@ -133,26 +136,6 @@ export function SetupPhase() {
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-2 font-medium tracking-wide">Social Deduction Game</p>
       </div>
-
-      {/* Network Mode Toggle */}
-      {!roomId && (
-        <div className="flex items-center justify-center gap-2 bg-black/5 dark:bg-white/5 p-1 rounded-xl mb-6 border border-black/10 dark:border-white/10 w-fit mx-auto">
-          <button 
-            onClick={() => { setOfflineMode(false); setOnlineMenuState('name'); }}
-            className={`flex items-center gap-2 px-4 py-2 ${!isOffline ? 'bg-white dark:bg-neutral-800 shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'} transition-all rounded-lg font-bold text-sm`}
-          >
-            <Wifi className="w-4 h-4" />
-            Play Online
-          </button>
-          <button 
-            onClick={() => setOfflineMode(true)}
-            className={`flex items-center gap-2 px-4 py-2 ${isOffline ? 'bg-white dark:bg-neutral-800 shadow-sm text-green-600 dark:text-green-500' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'} transition-all rounded-lg font-bold text-sm`}
-          >
-            <WifiOff className="w-4 h-4" />
-            Pass & Play
-          </button>
-        </div>
-      )}
 
       {/* Online Room Code Copier (Only in Lobby) */}
       {!isOffline && roomId && onlineMenuState === 'lobby' && (
@@ -176,6 +159,31 @@ export function SetupPhase() {
       <GlassCard className="w-full bg-white/80 dark:bg-neutral-900/60 border-black/10 dark:border-white/10 shadow-2xl p-6 md:p-8">
         
         {/* UI State Machine for Online Mode */}
+        {onlineMenuState === 'start' && (
+          <div className="flex flex-col gap-4">
+            <button
+              onClick={() => { setOfflineMode(false); setOnlineMenuState('name'); }}
+              className="flex items-center justify-between p-6 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+            >
+              <div className="flex flex-col text-left">
+                <span className="font-black text-xl tracking-wide">PLAY ONLINE</span>
+                <span className="text-blue-200 text-sm font-medium">Join or host a remote room</span>
+              </div>
+              <Wifi className="w-8 h-8 opacity-80" />
+            </button>
+            <button
+              onClick={() => { setOfflineMode(true); setOnlineMenuState('lobby'); }}
+              className="flex items-center justify-between p-6 bg-green-600 hover:bg-green-700 text-white rounded-2xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+            >
+              <div className="flex flex-col text-left">
+                <span className="font-black text-xl tracking-wide">PASS & PLAY</span>
+                <span className="text-green-200 text-sm font-medium">Play offline on one device</span>
+              </div>
+              <WifiOff className="w-8 h-8 opacity-80" />
+            </button>
+          </div>
+        )}
+
         {!isOffline ? (
           <>
             {onlineMenuState === 'name' && (
@@ -392,7 +400,7 @@ export function SetupPhase() {
         )}
 
         {/* Game Settings (Only shown to Host or Offline) */}
-        {(isOffline || (onlineMenuState === 'lobby' && players[0]?.id === localPlayerId)) && (
+        {(isOffline || (onlineMenuState === 'lobby' && hostPlayerId === localPlayerId)) && (
           <div className="mt-8 border-t border-white/10 pt-6">
             <div className="flex items-center gap-2 mb-4 text-gray-400">
               <Settings2 className="w-4 h-4" />
@@ -404,7 +412,7 @@ export function SetupPhase() {
                   <span className="text-gray-700 dark:text-gray-300 font-medium text-sm">Mr. White Hint</span>
                   <select 
                     className="bg-white text-gray-900 border border-black/10 dark:bg-neutral-800 dark:text-white dark:border-white/10 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                    value={settings.mrWhiteHint}
+                    value={settings.mrWhiteHint || "none"}
                     onChange={(e) => updateSettings({ mrWhiteHint: e.target.value as "none" | "category" | "hard" })}
                   >
                     <option value="none">No Hint</option>
@@ -418,8 +426,20 @@ export function SetupPhase() {
                     <input 
                       type="checkbox" 
                       className="sr-only peer" 
-                      checked={settings.multipleMrWhites}
+                      checked={!!settings.multipleMrWhites}
                       onChange={(e) => updateSettings({ multipleMrWhites: e.target.checked })}
+                    />
+                    <div className="w-11 h-6 bg-gray-300 dark:bg-neutral-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500 border border-black/10 dark:border-white/10 cursor-pointer"></div>
+                  </label>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-black/5 dark:bg-black/20 rounded-xl border border-black/10 dark:border-white/5">
+                  <span className="text-gray-700 dark:text-gray-300 font-medium text-sm">Typed Clues <span className="text-gray-500 text-xs ml-1">(off = speak)</span></span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={!!settings.typedClueMode}
+                      onChange={(e) => updateSettings({ typedClueMode: e.target.checked })}
                     />
                     <div className="w-11 h-6 bg-gray-300 dark:bg-neutral-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500 border border-black/10 dark:border-white/10 cursor-pointer"></div>
                   </label>
@@ -430,7 +450,7 @@ export function SetupPhase() {
 
         {(isOffline || onlineMenuState === 'lobby') && (
           <>
-            {(isOffline || players[0]?.id === localPlayerId) ? (
+            {(isOffline || hostPlayerId === localPlayerId) ? (
               <motion.button 
                 whileHover={{ scale: players.length >= 3 ? 1.02 : 1 }}
                 whileTap={{ scale: players.length >= 3 ? 0.98 : 1 }}

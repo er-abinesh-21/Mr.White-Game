@@ -11,6 +11,8 @@ export interface Player {
 
 export interface GameSettings {
   mrWhiteHint: 'none' | 'category' | 'hard';
+  mrWhiteGuessEnabled: boolean;
+  typedClueMode: boolean;
   timerMode: boolean;
   timerSeconds: number;
   noRepeatWords: boolean;
@@ -22,6 +24,7 @@ export interface GameSettings {
 
 export interface GameState {
   roomId: string | null;
+  hostPlayerId: string | null;
   phase: GamePhase;
   players: Player[];
   settings: GameSettings;

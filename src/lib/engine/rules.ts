@@ -3,37 +3,34 @@ import { Player, Role } from '../types/game';
 // Utility functions for the Game Engine
 
 /**
- * Assigns roles to players, ensuring Civilians are positioned first in the play order.
- * If Mr. White ends up being first, the order is reshuffled or adjusted so a Civilian speaks first.
+ * Assigns roles randomly to players.
  */
 export function initializeGame(players: Player[], multipleMrWhites: boolean = false): { roles: Record<string, Role>, orderedPlayers: Player[] } {
   if (players.length < 3) {
     throw new Error('At least 3 players are required to start the game.');
   }
 
-  // Shuffle players using Fisher-Yates
-  let shuffled = [...players].sort(() => Math.random() - 0.5);
-
-  // Assign roles
-  const numMrWhites = multipleMrWhites ? (players.length >= 6 ? 2 : 1) : 1;
-  
-  const roles: Record<string, Role> = {};
-  
-  // First 'numMrWhites' players in the shuffled array get Mr. White role initially
-  shuffled.forEach((player, index) => {
-    roles[player.id] = index < numMrWhites ? 'mr_white' : 'civilian';
-  });
-
-  // ENFORCED RULE: First player to give a clue MUST be a civilian.
-  // If the first player is Mr. White, swap them with the first available Civilian.
-  if (roles[shuffled[0].id] === 'mr_white') {
-    const civilianIndex = shuffled.findIndex(p => roles[p.id] === 'civilian');
-    if (civilianIndex !== -1) {
-      const temp = shuffled[0];
-      shuffled[0] = shuffled[civilianIndex];
-      shuffled[civilianIndex] = temp;
-    }
+  // Proper Fisher-Yates shuffle
+  let shuffled = [...players];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
+
+  const numMrWhites = multipleMrWhites ? (players.length >= 6 ? 2 : 1) : 1;
+  const roles: Record<string, Role> = {};
+  const allIndices = Array.from({ length: shuffled.length }, (_, i) => i);
+
+  for (let i = allIndices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allIndices[i], allIndices[j]] = [allIndices[j], allIndices[i]];
+  }
+
+  const mrWhiteIndices = new Set(allIndices.slice(0, numMrWhites));
+
+  shuffled.forEach((player, index) => {
+    roles[player.id] = mrWhiteIndices.has(index) ? 'mr_white' : 'civilian';
+  });
 
   return { roles, orderedPlayers: shuffled };
 }
