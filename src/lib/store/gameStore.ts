@@ -73,6 +73,28 @@ function normalizePartyKitHost(rawHost?: string): string | null {
   return withoutPath || null;
 }
 
+async function parseSocketPayload(payload: unknown): Promise<any | null> {
+  try {
+    if (typeof payload === 'string') {
+      return JSON.parse(payload);
+    }
+
+    if (typeof Blob !== 'undefined' && payload instanceof Blob) {
+      const text = await payload.text();
+      return JSON.parse(text);
+    }
+
+    if (payload instanceof ArrayBuffer) {
+      const text = new TextDecoder().decode(payload);
+      return JSON.parse(text);
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function shufflePlayers(players: Player[]): Player[] {
   const shuffled = [...players];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -153,6 +175,14 @@ export const useGameStore = create<GameStore>()(
         currentSocket.close();
       }
 
+      // Entering a room starts a fresh local online session identity for this tab.
+      set({
+        localPlayerId: null,
+        hostPlayerId: null,
+        players: [],
+        connectionError: null,
+      });
+
       const configuredHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST;
       const normalizedConfiguredHost = normalizePartyKitHost(configuredHost);
       const isLocalBrowser =
@@ -160,9 +190,7 @@ export const useGameStore = create<GameStore>()(
         (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
       const partyhost = isLocalBrowser
-        ? (normalizedConfiguredHost && (normalizedConfiguredHost.includes('localhost') || normalizedConfiguredHost.includes('127.0.0.1'))
-            ? normalizedConfiguredHost
-            : '127.0.0.1:1999')
+        ? (normalizedConfiguredHost || '127.0.0.1:1999')
         : normalizedConfiguredHost;
 
       if (!partyhost) {
@@ -172,30 +200,56 @@ export const useGameStore = create<GameStore>()(
         });
         return;
       }
+
+      const isLocalPartyHost =
+        partyhost.includes('localhost') || partyhost.includes('127.0.0.1');
       
       const socket = new PartySocket({
         host: partyhost,
         room: roomId,
+        party: 'main',
+        protocol: isLocalPartyHost ? 'ws' : 'wss',
       });
 
-      set({ connectionError: null });
+      const isCurrentSocket = () => get().socket === socket;
+      let closeErrorTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const clearCloseErrorTimer = () => {
+        if (closeErrorTimer) {
+          clearTimeout(closeErrorTimer);
+          closeErrorTimer = null;
+        }
+      };
+
+      set({
+        connectionError: null,
+      });
 
       socket.addEventListener('open', () => {
+        if (!isCurrentSocket()) return;
+        clearCloseErrorTimer();
         set({ connectionError: null });
       });
 
-      socket.addEventListener("message", (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (data.type === "SYNC_STATE" && data.state) {
-            get().syncState(data.state);
-          }
-        } catch (err) {
-          console.error("Failed to parse party socket message", err);
+      socket.addEventListener("message", async (e) => {
+        if (!isCurrentSocket()) return;
+        clearCloseErrorTimer();
+        const data = await parseSocketPayload(e.data);
+        if (!data) {
+          console.error("Failed to parse party socket message", e.data);
+          return;
+        }
+
+        if (data.type === "SYNC_STATE" && data.state) {
+          get().syncState(data.state);
         }
       });
 
       socket.addEventListener("error", (err) => {
+        if (!isCurrentSocket()) return;
+        if (socket.readyState === WebSocket.OPEN) {
+          return;
+        }
         console.error("PartySocket connection error", err);
         set({
           connectionError:
@@ -204,13 +258,19 @@ export const useGameStore = create<GameStore>()(
       });
 
       socket.addEventListener('close', () => {
+        if (!isCurrentSocket()) return;
         const { isOffline } = get();
-        if (!isOffline) {
+        clearCloseErrorTimer();
+        closeErrorTimer = setTimeout(() => {
+          if (!isCurrentSocket()) return;
+          const latest = get();
+          if (latest.isOffline) return;
+          if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) return;
           set({
             connectionError:
               'Realtime connection closed. Rejoin the room after verifying the PartyKit host.',
           });
-        }
+        }, 1500);
       });
 
       set({ socket, roomId });
@@ -221,7 +281,11 @@ export const useGameStore = create<GameStore>()(
       if (currentSocket) {
         currentSocket.close();
       }
-      set({ socket: null, roomId: null, connectionError: null });
+      set({
+        socket: null,
+        roomId: null,
+        connectionError: null,
+      });
     },
 
     syncState: (state) => set((_state) => ({ ...state })),
@@ -234,8 +298,10 @@ export const useGameStore = create<GameStore>()(
 
       if (!trimmedName) return;
 
-      // Automatically make the user who just typed their name the owner of that tab
-      if (!state.localPlayerId && !state.isOffline) {
+      // In online mode, bind this tab once to its own player identity.
+      const localIdentityMissingOrInvalid =
+        !state.localPlayerId || !state.players.some((p) => p.id === state.localPlayerId);
+      if (!state.isOffline && localIdentityMissingOrInvalid) {
         set({ localPlayerId: newPlayerId });
       }
 

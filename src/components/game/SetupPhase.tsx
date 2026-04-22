@@ -12,6 +12,10 @@ export function SetupPhase() {
   const [onlineMenuState, setOnlineMenuState] = useState<'start' | 'name' | 'choose' | 'join' | 'lobby'>('start');
   const [playerNameInput, setPlayerNameInput] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
+  const effectiveHostPlayerId =
+    hostPlayerId && players.some((p) => p.id === hostPlayerId)
+      ? hostPlayerId
+      : (players[0]?.id ?? null);
 
   // If a user gets here with a localPlayerId and a roomId, they belong in the lobby.
   useEffect(() => {
@@ -71,9 +75,22 @@ export function SetupPhase() {
 
   const handleJoinRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (roomCodeInput.trim().length > 0) {
+    const trimmedName = playerNameInput.trim();
+    if (roomCodeInput.trim().length > 0 && trimmedName) {
       const code = roomCodeInput.trim().toUpperCase();
       joinRoom(code);
+
+      const postJoinSocket = useGameStore.getState().socket;
+      if (postJoinSocket?.readyState === WebSocket.OPEN) {
+        addPlayer(trimmedName);
+      } else if (postJoinSocket) {
+        const registerOnOpen = () => {
+          addPlayer(trimmedName);
+          postJoinSocket.removeEventListener('open', registerOnOpen);
+        };
+        postJoinSocket.addEventListener('open', registerOnOpen);
+      }
+
       setRoomCodeInput('');
       
       if (typeof window !== 'undefined') {
@@ -162,7 +179,7 @@ export function SetupPhase() {
             {connectionError}
           </div>
         )}
-        
+
         {/* UI State Machine for Online Mode */}
         {onlineMenuState === 'start' && (
           <div className="flex flex-col gap-4">
@@ -237,9 +254,23 @@ export function SetupPhase() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => {
+                    const trimmedName = playerNameInput.trim();
+                    if (!trimmedName) return;
+
                     const generatedId = Math.random().toString(36).substring(2, 8).toUpperCase();
                     joinRoom(generatedId);
-                    addPlayer(playerNameInput.trim());
+
+                    const postJoinSocket = useGameStore.getState().socket;
+                    if (postJoinSocket?.readyState === WebSocket.OPEN) {
+                      addPlayer(trimmedName);
+                    } else if (postJoinSocket) {
+                      const registerOnOpen = () => {
+                        addPlayer(trimmedName);
+                        postJoinSocket.removeEventListener('open', registerOnOpen);
+                      };
+                      postJoinSocket.addEventListener('open', registerOnOpen);
+                    }
+
                     setOnlineMenuState('lobby');
                   }}
                   className="w-full bg-blue-600 text-white px-5 py-4 rounded-xl font-bold shadow-[0_0_20px_rgba(37,99,235,0.2)] hover:bg-blue-500 transition-colors"
@@ -272,10 +303,21 @@ export function SetupPhase() {
                 className="flex flex-col gap-3 isolate relative z-10 text-center"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (roomCodeInput.trim() && playerNameInput.trim()) {
+                  const trimmedName = playerNameInput.trim();
+                  if (roomCodeInput.trim() && trimmedName) {
                     const code = roomCodeInput.trim().toUpperCase();
                     joinRoom(code);
-                    addPlayer(playerNameInput.trim());
+
+                    const postJoinSocket = useGameStore.getState().socket;
+                    if (postJoinSocket?.readyState === WebSocket.OPEN) {
+                      addPlayer(trimmedName);
+                    } else if (postJoinSocket) {
+                      const registerOnOpen = () => {
+                        addPlayer(trimmedName);
+                        postJoinSocket.removeEventListener('open', registerOnOpen);
+                      };
+                      postJoinSocket.addEventListener('open', registerOnOpen);
+                    }
                     
                     if (typeof window !== 'undefined') {
                       const url = new URL(window.location.href);
@@ -405,7 +447,7 @@ export function SetupPhase() {
         )}
 
         {/* Game Settings (Only shown to Host or Offline) */}
-        {(isOffline || (onlineMenuState === 'lobby' && hostPlayerId === localPlayerId)) && (
+        {(isOffline || (onlineMenuState === 'lobby' && effectiveHostPlayerId === localPlayerId)) && (
           <div className="mt-8 border-t border-white/10 pt-6">
             <div className="flex items-center gap-2 mb-4 text-gray-400">
               <Settings2 className="w-4 h-4" />
@@ -455,7 +497,7 @@ export function SetupPhase() {
 
         {(isOffline || onlineMenuState === 'lobby') && (
           <>
-            {(isOffline || hostPlayerId === localPlayerId) ? (
+            {(isOffline || effectiveHostPlayerId === localPlayerId) ? (
               <motion.button 
                 whileHover={{ scale: players.length >= 3 ? 1.02 : 1 }}
                 whileTap={{ scale: players.length >= 3 ? 0.98 : 1 }}

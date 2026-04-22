@@ -3,6 +3,26 @@ import { GameState } from "../src/lib/types/game";
 import { getRandomWordWithSettings } from "../src/lib/data/words";
 import { initializeGame } from "../src/lib/engine/rules";
 
+function parseIncomingMessage(message: string | ArrayBuffer | Uint8Array): any | null {
+  try {
+    if (typeof message === "string") {
+      return JSON.parse(message);
+    }
+
+    if (message instanceof ArrayBuffer) {
+      return JSON.parse(new TextDecoder().decode(message));
+    }
+
+    if (message instanceof Uint8Array) {
+      return JSON.parse(new TextDecoder().decode(message));
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default class MrWhiteServer implements Party.Server {
   // Store the full, unredacted game state in memory for this room
   gameState: Partial<GameState> | null = null;
@@ -17,6 +37,21 @@ export default class MrWhiteServer implements Party.Server {
     };
   }
 
+  private ensureValidHostOnState() {
+    if (!this.gameState?.players) return;
+
+    const hasCurrentHost =
+      !!this.gameState.hostPlayerId &&
+      this.gameState.players.some((p) => p.id === this.gameState!.hostPlayerId);
+
+    if (!hasCurrentHost) {
+      this.gameState = {
+        ...this.gameState,
+        hostPlayerId: this.gameState.players[0]?.id ?? null,
+      };
+    }
+  }
+
   // Helper to send sanitized state to clients
   // Civilians receive the secretWord, Mr White does not!
   // Roles are hidden to prevent looking at network pane
@@ -24,6 +59,7 @@ export default class MrWhiteServer implements Party.Server {
     if (!this.gameState || !this.gameState.players) return;
 
     this.ensureRoomIdOnState();
+    this.ensureValidHostOnState();
 
     for (const conn of this.room.getConnections()) {
       // Find what player this connection belongs to...
@@ -39,6 +75,7 @@ export default class MrWhiteServer implements Party.Server {
   }
 
   onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
+    this.ensureValidHostOnState();
     if (this.gameState) {
       conn.send(JSON.stringify({ type: "SYNC_STATE", state: this.gameState }));
     } else {
@@ -46,9 +83,13 @@ export default class MrWhiteServer implements Party.Server {
     }
   }
 
-  onMessage(message: string, sender: Party.Connection) {
+  onMessage(message: string | ArrayBuffer | Uint8Array, sender: Party.Connection) {
     try {
-      const data = JSON.parse(message);
+      const data = parseIncomingMessage(message);
+      if (!data) {
+        console.error("Failed to parse message payload");
+        return;
+      }
       
       // Setup Game Triggered
       if (data.type === "START_GAME") {
@@ -138,6 +179,7 @@ export default class MrWhiteServer implements Party.Server {
       }
       else if (data.type === "UPDATE_STATE") {
         this.gameState = { ...this.gameState, ...data.state, roomId: this.room.id };
+        this.ensureValidHostOnState();
         this.room.broadcast(JSON.stringify({ type: "SYNC_STATE", state: this.gameState }), [sender.id]);
       }
     } catch (e) {
