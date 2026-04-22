@@ -7,6 +7,7 @@ import { calculateElimination } from '../engine/rules';
 export interface GameStore extends GameState {
   socket: PartySocket | null;
   localPlayerId: string | null; // <-- NEW
+  connectionError: string | null;
   isOffline: boolean;
   setOfflineMode: (offline: boolean) => void;
   // Network Lifecycle Actions
@@ -59,6 +60,18 @@ const initialState: Omit<GameState, 'roomId'> = {
   mrWhiteGuess: null,
   winner: null,
 };
+
+function normalizePartyKitHost(rawHost?: string): string | null {
+  if (!rawHost) return null;
+
+  const trimmed = rawHost.trim();
+  if (!trimmed) return null;
+
+  const withoutProtocol = trimmed.replace(/^https?:\/\//i, '');
+  const withoutPath = withoutProtocol.replace(/\/.*$/, '');
+
+  return withoutPath || null;
+}
 
 function shufflePlayers(players: Player[]): Player[] {
   const shuffled = [...players];
@@ -116,6 +129,7 @@ export const useGameStore = create<GameStore>()(
         roomId: null,
     socket: null,
     localPlayerId: null,
+      connectionError: null,
     isOffline: false,
 
     setOfflineMode: (offline) => {
@@ -140,19 +154,34 @@ export const useGameStore = create<GameStore>()(
       }
 
       const configuredHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST;
+      const normalizedConfiguredHost = normalizePartyKitHost(configuredHost);
       const isLocalBrowser =
         typeof window !== 'undefined' &&
         (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
       const partyhost = isLocalBrowser
-        ? (configuredHost && (configuredHost.includes('localhost') || configuredHost.includes('127.0.0.1'))
-            ? configuredHost
+        ? (normalizedConfiguredHost && (normalizedConfiguredHost.includes('localhost') || normalizedConfiguredHost.includes('127.0.0.1'))
+            ? normalizedConfiguredHost
             : '127.0.0.1:1999')
-        : (configuredHost || '127.0.0.1:1999');
+        : normalizedConfiguredHost;
+
+      if (!partyhost) {
+        set({
+          connectionError:
+            'Online mode is not configured. Set NEXT_PUBLIC_PARTYKIT_HOST in your deployment environment.',
+        });
+        return;
+      }
       
       const socket = new PartySocket({
         host: partyhost,
         room: roomId,
+      });
+
+      set({ connectionError: null });
+
+      socket.addEventListener('open', () => {
+        set({ connectionError: null });
       });
 
       socket.addEventListener("message", (e) => {
@@ -168,6 +197,20 @@ export const useGameStore = create<GameStore>()(
 
       socket.addEventListener("error", (err) => {
         console.error("PartySocket connection error", err);
+        set({
+          connectionError:
+            'Could not connect to the realtime server. Check NEXT_PUBLIC_PARTYKIT_HOST and PartyKit deployment status.',
+        });
+      });
+
+      socket.addEventListener('close', () => {
+        const { isOffline } = get();
+        if (!isOffline) {
+          set({
+            connectionError:
+              'Realtime connection closed. Rejoin the room after verifying the PartyKit host.',
+          });
+        }
       });
 
       set({ socket, roomId });
@@ -178,7 +221,7 @@ export const useGameStore = create<GameStore>()(
       if (currentSocket) {
         currentSocket.close();
       }
-      set({ socket: null, roomId: null });
+      set({ socket: null, roomId: null, connectionError: null });
     },
 
     syncState: (state) => set((_state) => ({ ...state })),

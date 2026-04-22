@@ -8,7 +8,7 @@ import { getRandomWordWithSettings } from "@/lib/data/words";
 import { initializeGame } from "@/lib/engine/rules";
 
 export function SetupPhase() {
-  const { addPlayer, removePlayer, players, roomId, joinRoom, startGame, settings, isOffline, setOfflineMode, localPlayerId, hostPlayerId, updateSettings } = useGameStore();
+  const { addPlayer, removePlayer, players, roomId, joinRoom, startGame, settings, isOffline, setOfflineMode, localPlayerId, hostPlayerId, updateSettings, connectionError } = useGameStore();
   const [onlineMenuState, setOnlineMenuState] = useState<'start' | 'name' | 'choose' | 'join' | 'lobby'>('start');
   const [playerNameInput, setPlayerNameInput] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
@@ -157,6 +157,11 @@ export function SetupPhase() {
       )}
       
       <GlassCard className="w-full bg-white/80 dark:bg-neutral-900/60 border-black/10 dark:border-white/10 shadow-2xl p-6 md:p-8">
+        {!isOffline && connectionError && (
+          <div className="mb-4 rounded-xl border border-red-300/70 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+            {connectionError}
+          </div>
+        )}
         
         {/* UI State Machine for Online Mode */}
         {onlineMenuState === 'start' && (
