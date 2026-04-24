@@ -1,6 +1,6 @@
 import { useGameStore } from "@/lib/store/gameStore";
 import { GlassCard } from "../ui/GlassCard";
-import { Users2, Settings2, Play, UserPlus, XCircle, Link as LinkIcon, Wifi, WifiOff } from "lucide-react";
+import { Settings2, Play, UserPlus, XCircle, Link as LinkIcon, Wifi, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
@@ -144,9 +144,17 @@ export function SetupPhase() {
         <motion.div 
           initial={{ rotate: -10 }}
           animate={{ rotate: 0 }}
-          className="inline-block bg-black/5 dark:bg-white/10 p-4 rounded-3xl mb-4 border border-black/10 dark:border-white/20 shadow-[0_0_30px_rgba(0,0,0,0.05)] dark:shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+          className="inline-block mb-4"
         >
-          <Users2 className="w-10 h-10 text-gray-800 dark:text-white" />
+          <div className="w-20 h-20 rounded-3xl overflow-hidden">
+            <img
+              src="/logo.png"
+              alt="Mr. White logo"
+              width={80}
+              height={80}
+              className="w-20 h-20 object-cover scale-125"
+            />
+          </div>
         </motion.div>
         <h1 className="text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-gray-900 to-gray-500 dark:from-white dark:to-gray-500 drop-shadow-2xl">
           MR. WHITE
